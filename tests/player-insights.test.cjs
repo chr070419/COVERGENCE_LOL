@@ -385,3 +385,46 @@ test('a quoted champion in a qualifying highlight cannot introduce event-handler
     assert.match(tag, /&quot; onclick=&quot;alert\(1\)&quot; data-attack=&quot;/);
   });
 });
+
+test('champion token is a text mark with stable colour family and escaped initials', () => {
+  assert.equal(I.championInitials('Ahri'), 'Ah');
+  assert.equal(I.championInitials('Lee Sin'), 'LS');
+  assert.equal(I.championInitials("Kai'Sa"), 'KS');
+  assert.equal(I.championInitials('아리'), '아리');
+  assert.equal(I.championInitials(''), '?');
+  assert.equal(I.championToken('Ahri'), I.championToken(' ahri ').replace(/<b>[^<]*<\/b>/, '<b>Ah</b>'));
+  assert.match(I.championToken(null), /pt-token-empty/);
+  assert.doesNotMatch(I.championToken('<img src=x>'), /<img/);
+});
+
+test('markers are HTML points, Perfect is a separate diamond and missing values draw nothing', () => {
+  const html = I.render(detail([game({ setNumber: 1 }), game({ setNumber: 2, deaths: 0 }), game({ setNumber: 3, kills: null })]));
+  assert.equal((html.match(/class="pi-mark /g) || []).length, 2);
+  assert.match(html, /class="pi-mark pi-mark-win pi-mark-perfect"/);
+  assert.doesNotMatch(html, /top:NaN|left:NaN|Infinity/);
+});
+
+test('selected game badges state only facts relative to the current scope', () => {
+  const rows = [game({ setNumber: 1, kills: 20, deaths: 0, assists: 3 }), game({ setNumber: 2, kills: 5, deaths: 4, assists: 21 }), game({ setNumber: 3, kills: 30, deaths: null })];
+  const top = I.render(detail(rows), { selectedKey: I.gameKey(rows[0]) });
+  assert.match(top, /pi-badge-maxKills[^>]*>[\s\S]*?최다 킬 20/);
+  assert.match(top, /pi-badge-deathless/);
+  assert.doesNotMatch(top, /최다 어시스트 3/);
+  assert.match(I.render(detail(rows), { selectedKey: I.gameKey(rows[1]) }), /최다 어시스트 21/);
+  assert.doesNotMatch(I.render(detail(rows), { selectedKey: I.gameKey(rows[2]) }), /class="pi-badges"/);
+  assert.match(top, /VICTORY/);
+  assert.match(I.render(detail([game({ won: false })])), /DEFEAT/);
+});
+
+test('replay control appears only with two or more games; morph is a no-op without animation frames', () => {
+  assert.doesNotMatch(I.render(detail([game()])), /data-insight-replay/);
+  assert.match(I.render(detail([game({ setNumber: 1 }), game({ setNumber: 2 })]), { replaying: true }), /data-insight-replay="" aria-pressed="true"[^>]*>[\s\S]*?멈춤/);
+  const marks = [{ getAttribute: name => ({ 'data-mark-key': encodeURIComponent(I.gameKey(game())), 'data-x': '12', 'data-y': '80' })[name] }];
+  const snap = I.snapshot({ querySelectorAll: () => marks, querySelector: () => ({ getAttribute: () => '320' }) });
+  assert.deepEqual(snap.points.get(I.gameKey(game())), { x: 12, y: 80 });
+  assert.equal(snap.cursorX, 320);
+  let touched = false;
+  I.morph({ querySelector() { touched = true; return null; } }, snap, { enabled: true });
+  I.morph({ querySelector() { touched = true; return null; } }, snap, { enabled: false });
+  assert.equal(touched, false);
+});

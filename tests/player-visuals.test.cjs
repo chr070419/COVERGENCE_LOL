@@ -40,8 +40,10 @@ test('overview shows exact 6/4 results and 60.0%, including ring segment distrib
   const result = V.renderOverview(detail);
   assert.match(result, /60\.0%/);
   assert.match(result, /10경기 누적/);
-  assert.match(result, /<b>6<\/b> 승/);
-  assert.match(result, /<b>4<\/b> 패/);
+  // Count-up targets wrap the exact final text; motion never changes the value.
+  assert.match(result, /<b><span data-count-key="hero-wins" data-count-value="6" data-count-digits="0">6<\/span><\/b> 승/);
+  assert.match(result, /<b><span data-count-key="hero-losses" data-count-value="4" data-count-digits="0">4<\/span><\/b> 패/);
+  assert.match(result, /data-count-value="60" data-count-digits="1" data-count-suffix="%">60\.0%<\/span>/);
   assert.match(result, /stroke-dasharray="60 40"/);
   assert.match(result, /stroke-dasharray="40 60" stroke-dashoffset="-60"/);
 });

@@ -105,6 +105,9 @@ async function app(options = {}) {
     reset: async () => els.playerDetail.emit('click', { target: new Element('', { dataset: { explorerReset: '' } }) }),
     clear: async kind => els.playerDetail.emit('click', { target: new Element('', { dataset: { explorerClear: kind } }) }),
     insightKey: async key => els.playerDetail.emit('click', { target: new Element('', { dataset: { insightKey: encodeURIComponent(key) } }) }),
+    heroFilter: async value => els.playerDetail.emit('click', { target: new Element('', { dataset: { heroFilter: value } }) }),
+    heroGame: async key => els.playerDetail.emit('click', { target: new Element('', { dataset: { heroGame: encodeURIComponent(key) } }) }),
+    replay: async () => els.playerDetail.emit('click', { target: new Element('', { dataset: { insightReplay: '' } }) }),
     back: async search => { location.search = search; events.popstate(); await settle(); }
   };
 }
@@ -643,4 +646,57 @@ test('hero exploration shortcut preserves route and filters and respects reduced
   assert.equal(ui.location.search, route);
   assert.match(ui.els.playerDetail.innerHTML, /MID · 모든 챔피언 · <b>16경기/);
   assert.equal(ui.server.writes, 0);
+});
+
+test('player card shows source facts only and each one jumps into the matching explorer scope', async () => {
+  const ui = await app({ search: '?player=haeram&demo=1' });
+  const html = ui.els.playerDetail.innerHTML;
+  const strip = html.slice(html.indexOf('class="ps-strip"'), html.indexOf('class="profile-totals"'));
+  assert.match(strip, /주 무대[\s\S]*<strong>MID<\/strong><small>16경기 · 전체의 66\.7%<\/small>/);
+  assert.match(strip, /최다 픽[\s\S]*<strong>Ahri<\/strong><small>7경기 · 3승 4패<\/small>/);
+  assert.match(strip, /한 판 최다 킬[\s\S]*data-count-value="14"/);
+  assert.match(strip, /현재 <strong>4연승<\/strong> 중/);
+  assert.equal((strip.match(/class="ps-form-card /g) || []).length, 5);
+  assert.doesNotMatch(strip, /MVP|MMR|ACE|점수|Score|평점/);
+  await ui.heroFilter('champion:ahri');
+  assert.match(ui.els.playerDetail.innerHTML, /모든 라인 · Ahri · <b>7경기/);
+  assert.equal(ui.els.explorerHeading.focused, true);
+  await ui.heroFilter('role:mid');
+  assert.match(ui.els.playerDetail.innerHTML, /MID · 모든 챔피언 · <b>16경기/);
+  await ui.heroFilter('champion:zed');
+  await ui.heroFilter('role:__proto__');
+  assert.match(ui.els.playerDetail.innerHTML, /MID · 모든 챔피언 · <b>16경기/);
+  assert.equal(ui.server.writes, 0);
+});
+
+test('recent card outside the current filter widens the scope and selects that exact game', async () => {
+  const ui = await app({ search: '?player=haeram&demo=1' });
+  const keys = [...ui.els.playerDetail.innerHTML.matchAll(/data-hero-game="([^"]+)"/g)].map(match => decodeURIComponent(match[1]));
+  await ui.role('top');
+  assert.match(ui.els.playerDetail.innerHTML, /TOP · 모든 챔피언 · <b>8경기/);
+  await ui.heroGame(keys[4]);
+  assert.match(ui.els.playerDetail.innerHTML, /모든 라인 · 모든 챔피언 · <b>24경기/);
+  assert.match(ui.els.playerDetail.innerHTML, /GAME 20 \/ 24/);
+  assert.match(ui.els.playerDetail.innerHTML, /<strong>Orianna<\/strong>/);
+  await ui.heroGame('["missing","set:1"]');
+  assert.match(ui.els.playerDetail.innerHTML, /GAME 20 \/ 24/);
+});
+
+test('replay is user-started from the first game, ends on the latest and never starts with motion off', async () => {
+  const ui = await app({ search: '?player=haeram&demo=1' });
+  assert.match(ui.els.playerDetail.innerHTML, /data-insight-replay="" aria-pressed="false"/);
+  await ui.replay();
+  assert.match(ui.els.playerInsights.innerHTML, /GAME 01 \/ 24/);
+  const reduced = await app({ search: '?player=haeram&demo=1', reducedMotion: true });
+  await reduced.replay();
+  assert.doesNotMatch(reduced.els.playerInsights?.innerHTML || '', /GAME 01 \/ 24/);
+  assert.match(reduced.els.playerDetail.innerHTML, /GAME 24 \/ 24/);
+  assert.equal(ui.server.writes + reduced.server.writes, 0);
+});
+
+test('profile view marks the document so the page chrome can compact', async () => {
+  const ui = await app({ search: '?player=injae' });
+  assert.equal(ui.document.documentElement.dataset.playerView, 'profile');
+  await ui.clickPlayer('');
+  assert.equal(ui.document.documentElement.dataset.playerView, 'directory');
 });
