@@ -1,0 +1,28 @@
+{
+  "package_created_at": "2026-10-07T16:02:38.057157+00:00",
+  "user_timezone": "Asia/Seoul",
+  "project_title": "융합본부 LoL 내전",
+  "project_id": "appgprj_6ac6048bd07c8191a04c2a9984ad7c59",
+  "version_number": 12,
+  "source_commit": "aca78cc8665f7a5be2aef674887fac9233187f5c",
+  "saved_version_id": "appgprj_6ac6048bd07c8191a04c2a9984ad7c59~appgver_a4c390ee8f408191baabb6913068cab7",
+  "deployment_id": "appgdep_6ac66987cfe4819187aba44051abe76f",
+  "deployment_status": "succeeded",
+  "deployment_timestamp_utc": "2026-10-07T15:47:48.043031+00:00",
+  "site_url": "https://jininfra-lol-inhouse.haeram0419.chatgpt.site",
+  "audience": "public",
+  "demo_url": "https://jininfra-lol-inhouse.haeram0419.chatgpt.site/players.html?player=haeram&demo=1",
+  "deployment_artifact_sha256": "fbe5912dac4cf3e02c9f2169e34d787206ee0edbaf838319baf9baba5941f830",
+  "sites_archive_storage_content_hash": "sha256:7cd6622d7d0cae53194c87be8bc45207945141ff572b1f603bc715fbc5f25978",
+  "deployment_artifact_provenance": "local build archive returned by the v12 packaging helper; 102 archive files verified byte-for-byte against current dist; compressed file checksum is distinct from Sites archive_storage content_hash",
+  "source_export": "exact git-tracked files at source_commit; no .git or ignored runtime files",
+  "production_data_included": false,
+  "runtime_secrets_included": false,
+  "prior_release_verification": {
+    "related_tests_passed": 103,
+    "affected_scenarios_rechecked": 2,
+    "build": "passed",
+    "real_browser_qa": "not_performed"
+  },
+  "harness_reference": "CHR_Web_Harness_r6 selected original documents; generator not executed"
+}
