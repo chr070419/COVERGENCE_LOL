@@ -89,7 +89,7 @@ async function app(options = {}) {
     async hostLoad() { server.loads += 1; if (server.deferred) await new Promise((resolve, reject) => server.waiting.push({ resolve, reject })); if (server.fail) throw Object.assign(new Error(server.fail), { status: 503 }); return JSON.stringify({ state: server.state, revision: server.revision, session: server.session }); },
     hostWrite() { server.writes += 1; throw new Error('Statistics page must not write'); }
   });
-  for (const file of ['domain/core.cjs', 'domain/history-core.cjs', 'domain/player-stats.cjs', 'public/player-visuals.js', 'public/player-demo.js', 'public/player-insights.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
+  for (const file of ['domain/core.cjs', 'domain/history-core.cjs', 'domain/player-stats.cjs', 'public/player-visuals.js', 'public/player-demo.js', 'public/player-insights.js', 'public/player-recap.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   vm.runInContext('globalThis.SiteData={load:async()=>JSON.parse(await hostLoad()),save:hostWrite};', context);
   vm.runInContext(source, context); await settle(); await settle();
   return { server, els, document, events, documentEvents, location, urls, intervals, media, preferenceWrites,
@@ -108,6 +108,7 @@ async function app(options = {}) {
     heroFilter: async value => els.playerDetail.emit('click', { target: new Element('', { dataset: { heroFilter: value } }) }),
     heroGame: async key => els.playerDetail.emit('click', { target: new Element('', { dataset: { heroGame: encodeURIComponent(key) } }) }),
     replay: async () => els.playerDetail.emit('click', { target: new Element('', { dataset: { insightReplay: '' } }) }),
+    recap: async () => els.playerDetail.emit('click', { target: new Element('', { dataset: { recapOpen: '' } }) }),
     back: async search => { location.search = search; events.popstate(); await settle(); }
   };
 }
@@ -699,4 +700,35 @@ test('profile view marks the document so the page chrome can compact', async () 
   assert.equal(ui.document.documentElement.dataset.playerView, 'profile');
   await ui.clickPlayer('');
   assert.equal(ui.document.documentElement.dataset.playerView, 'directory');
+});
+
+test('achievement wall and season recap open from the player card without a write', async () => {
+  const ui = await app({ search: '?player=haeram&demo=1' });
+  const html = ui.els.playerDetail.innerHTML;
+  assert.equal((html.match(/class="ac-tile is-unlocked"/g) || []).length, 9);
+  assert.match(html, /data-recap-open=""/);
+  assert.match(html, /5연승[\s\S]*?다음 경기를 이기면 달성/);
+  const key = decodeURIComponent(html.match(/data-hero-game="([^"]+)" data-achievement="streak-3"/)[1]);
+  await ui.heroGame(key);
+  assert.match(ui.els.playerDetail.innerHTML, /GAME 23 \/ 24/);
+  await ui.recap();
+  assert.equal(ui.els.recapDialog.open, true);
+  assert.match(ui.els.recapStage.innerHTML, /SEASON RECAP · 가상 데이터/);
+  assert.equal(ui.els.recapCount.textContent, '1 / 10');
+  await ui.els.recapNext.emit('click');
+  assert.match(ui.els.recapStage.innerHTML, /WHERE IT STARTED/);
+  await ui.els.recapPrev.emit('click');
+  assert.equal(ui.els.recapPrev.disabled, true);
+  await ui.els.recapClose.emit('click');
+  assert.equal(ui.els.recapDialog.open, false);
+  assert.equal(ui.server.writes, 0);
+});
+
+test('recap does not auto-advance with motion off and an empty profile has no recap or wall', async () => {
+  const ui = await app({ search: '?player=haeram&demo=1', reducedMotion: true });
+  await ui.recap();
+  assert.equal(ui.els.recapPause.hidden, true);
+  assert.match(ui.els.recapProgress.innerHTML, /is-active is-paused/);
+  const empty = await app({ state: null, search: '?player=injae' });
+  assert.doesNotMatch(empty.els.playerDetail.innerHTML, /data-recap-open|class="ac-wall"/);
 });

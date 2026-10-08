@@ -91,3 +91,18 @@ Process note: the harness treats a broad redesign as a representative draft that
 - `node --test tests/*.cjs tests/*.mjs`: 267 passed (254 existing, 1 existing assertion updated for count-up markup, 13 new: harness token guard, hero facts and jumps, out-of-scope recent card, replay, view marker, token, markers, badges, replay/morph no-op, motion module).
 - Real Chromium via Playwright against a local static server with a mock read-only `/api` (demo state): 1440 / 1024 / 430 / 390 / 375 / 320 px renders with no horizontal overflow and no console errors; 200% zoom emulated as 720×450 (desktop) and 195 CSS px (390 phone) at device scale 2 with no overflow or clipped labels; print media emulated (animations off, replay/watermarks hidden) and an A4 PDF produced; scripted checks of entrance count-up (12.1% → 62.5%), fact → filter, map + champion intersection, reset, hover preview, plot click and drag, metric morph, replay 1 → 24, highlight burst + scroll, hero card selection, view switch, explicit motion off and emulated OS reduced motion.
 - Not verified: real phones/tablets, touch feel, Safari/WebKit, KakaoTalk webview, real browser text-zoom settings (only emulated), screen readers, the printed PDF on paper, the real Sites runtime and D1 data, and whether the user now finds it fun.
+
+## Round 3 — "더 재미있게, 전력을 다해서"
+
+User feedback after the harness-aligned pass: still not fun enough. The palette, shapes and motion rules above stay; this round adds game-like layers, every one derived from recorded games only.
+
+| Feature | What it does | Source |
+| --- | --- | --- |
+| Season recap story (`▶ 시즌 리캡 보기`) | Full-screen story slides: intro with every game as a W/L ribbon, first game, record, main lane, most-picked champion (and most-won if different), best day, longest win streak (flags if still running), career highs, best duo (real records only), achievements and next goal, call to action. Progress bars, tap/arrow navigation, pause; auto-advance only while motion is on. White slides carry the CHR_Web corner polygons from `design-tokens.json`. | `player-recap.js` `recap()` / `renderStory()` |
+| Achievement wall | 12 milestones with their rule written on the tile (첫 승리, 10/30경기, 3/5연승, 한 판 10킬, 한 판 20어시스트, 무데스, 챔피언 5종, 한 챔피언 5경기, 하루 3승, 세 라인). Unlocked tiles open the exact first game that met the rule; locked tiles show progress and what is left ("다음 경기를 이기면 달성"). K/D/A milestones read "K/D/A 미수집" when no complete K/D/A game exists. | `achievements()` walks games oldest → newest |
+| Season ribbon | Every game in scope as a W/L segment under the timeline scrubber; the 12-game window and the selected game are marked and follow drags. | `renderRibbon()` in `player-insights.js` |
+| Streak celebration | A live win streak of 3+ gets a short burst on arrival. | `form.streak` |
+
+Milestone thresholds are fixed, documented counts — not ratings. They are computed for the current date scope, not the lane/champion filter.
+
+Verification for this round: 274 Node tests passed (7 new: recap/achievement module ×5, page wall + dialog, motion-off recap and empty profile). Chromium via Playwright: 1440/1024/430/390/375/320 px with no overflow or console errors; 200% zoom emulation and print emulation unchanged; recap driven slide by slide at 1440, 390 and 320 px (10 slides, arrows, Esc focus return, auto-advance, pause, CTA closes and scrolls to the explorer). Two bugs found and fixed during that run: the left tap zone covered the last slide's buttons, and focus was lost when "next" disabled on the last slide. Real devices remain unverified.

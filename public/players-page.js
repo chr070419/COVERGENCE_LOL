@@ -9,6 +9,7 @@
   const Insights = globalThis.LoLPlayerInsights;
   // Optional presentation layer; every call is skipped when it is absent.
   const M = globalThis.LoLPlayerMotion || null;
+  const R = globalThis.LoLPlayerRecap || null;
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
   const roleName = id => id === 'fill' ? '상관없음' : C.ROLES.find(role => role.id === id)?.label || '미입력';
@@ -47,6 +48,8 @@
   let selectedRole = '';
   let lastProfileKey = '';
   let replayTimer = null;
+  let recapSlides = [], recapIndex = 0, recapTimer = null, recapPaused = false, recapReturn = null, recapDirection = 'next';
+  const RECAP_MS = 4800;
   let motionPreference = null;
   try { motionPreference = window.localStorage?.getItem('lol-player-motion'); } catch (_) { /* The page works when local preferences are unavailable. */ }
   const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
@@ -322,19 +325,22 @@
     const animate = !sameProfile && motionEnabled();
     // Numbers and bars glide from what was on screen when only the scope changes.
     const before = sameProfile && M && motionEnabled() ? M.snapshot($('playerDetail')) : null;
-    if (!sameProfile) stopReplay(false);
+    if (!sameProfile) { stopReplay(false); closeRecap(); }
     lastProfileKey = profileKey;
     $('playerDetail').classList.remove('is-animated');
     if (animate) $('playerDetail').classList.add('is-animated');
     document.title = `${demoMode ? '가상 데이터 · ' : ''}${profile.name} · 개인 성적 · 융합본부 롤 내전`;
     const seconds = Array.isArray(profile.secondary) ? profile.secondary.map(roleName).join(' / ') : '';
-    const profileHead = `<div class="player-stage" data-ripple-scope>${heroWatermark(detail)}<header class="profile-heading"><div><div class="eyebrow">${demoMode ? 'DEMO PLAYER PROFILE · 가상 데이터' : 'PLAYER PROFILE'}${profile.registered ? '' : ' · 이전 선수'}</div><h2 id="playerDetailHeading" tabindex="-1">${esc(profile.name)}</h2>${profile.currentNickname ? `<p class="profile-nickname"><span>현재 닉네임</span><strong>${esc(profile.currentNickname)}</strong></p>` : ''}${profile.nicknameAliases?.length ? `<details class="profile-aliases" ${panelAttribute('aliases')}><summary>이전 닉네임 ${profile.nicknameAliases.length}개</summary><ul>${profile.nicknameAliases.map(alias => `<li>${esc(alias)}</li>`).join('')}</ul></details>` : ''}<p><span class="tier-badge tier-${esc(profile.tier)}">${esc(tierName(profile.tier))}</span><span>주 <b>${esc(roleName(profile.primary))}</b></span><span>부 <b>${esc(seconds || '없음')}</b></span>${profile.excluded?.length ? `<span>제외 ${esc(profile.excluded.map(roleName).join(' / '))}</span>` : ''}</p></div><div class="profile-scope">${demoMode ? '가상 성적 · ' : ''}${selectedDate === 'all' ? '누적 내전 성적' : esc(fullDate(selectedDate))}<small>${detail.seriesCount}시리즈 · ${demoMode ? '샘플 경기' : '실제 플레이 세트'} 기준<br>라인·챔피언 필터 적용 전</small><button type="button" class="pe-jump" data-explorer-jump>내 플레이 탐색하기 <span aria-hidden="true">↓</span></button></div></header><div class="player-stage-overview">${V.renderOverview(detail)}</div>${heroStrip(detail)}</div>`;
+    const profileHead = `<div class="player-stage" data-ripple-scope>${heroWatermark(detail)}<header class="profile-heading"><div><div class="eyebrow">${demoMode ? 'DEMO PLAYER PROFILE · 가상 데이터' : 'PLAYER PROFILE'}${profile.registered ? '' : ' · 이전 선수'}</div><h2 id="playerDetailHeading" tabindex="-1">${esc(profile.name)}</h2>${profile.currentNickname ? `<p class="profile-nickname"><span>현재 닉네임</span><strong>${esc(profile.currentNickname)}</strong></p>` : ''}${profile.nicknameAliases?.length ? `<details class="profile-aliases" ${panelAttribute('aliases')}><summary>이전 닉네임 ${profile.nicknameAliases.length}개</summary><ul>${profile.nicknameAliases.map(alias => `<li>${esc(alias)}</li>`).join('')}</ul></details>` : ''}<p><span class="tier-badge tier-${esc(profile.tier)}">${esc(tierName(profile.tier))}</span><span>주 <b>${esc(roleName(profile.primary))}</b></span><span>부 <b>${esc(seconds || '없음')}</b></span>${profile.excluded?.length ? `<span>제외 ${esc(profile.excluded.map(roleName).join(' / '))}</span>` : ''}</p></div><div class="profile-scope">${demoMode ? '가상 성적 · ' : ''}${selectedDate === 'all' ? '누적 내전 성적' : esc(fullDate(selectedDate))}<small>${detail.seriesCount}시리즈 · ${demoMode ? '샘플 경기' : '실제 플레이 세트'} 기준<br>라인·챔피언 필터 적용 전</small><div class="ps-actions">${R && detail.totals.games ? '<button type="button" class="ps-recap" data-recap-open=""><span aria-hidden="true">▶</span> 시즌 리캡 보기</button>' : ''}<button type="button" class="pe-jump" data-explorer-jump>내 플레이 탐색하기 <span aria-hidden="true">↓</span></button></div></div></header><div class="player-stage-overview">${V.renderOverview(detail)}</div>${heroStrip(detail)}</div>`;
     const summary = `<dl class="profile-totals">${metric('KDA', countedKda(totals.kda, 'total-kda'), `K/D/A 모두 수집된 ${totals.kda.games}경기`)}${metric('평균 K / D / A', avgKda(totals), samples(totals), 'kda-metric')}${metric('평균 CS', V.counted('total-cs', totals.averages.cs, 1), `CS가 수집된 ${totals.samples.cs}경기`)}${metric('CS/min', V.counted('total-cspm', totals.csPerMinute, 1), `CS·시간이 모두 있는 ${totals.csPerMinuteGames}경기`)}</dl>`;
     const empty = totals.games ? '' : `<div class="profile-empty"><h3>${selectedDate === 'all' ? '아직 기록된 내전이 없습니다.' : '선택한 경기일에 기록된 내전이 없습니다.'}</h3><p>경기 기록이 등록되면 개인 성적이 자동으로 집계됩니다.</p></div>`;
     const notes = `<details class="profile-method" ${panelAttribute('method')}><summary>통계 계산 기준</summary><p>1경기는 시리즈 전체가 아닌 1세트를 뜻합니다. KDA는 K/D/A가 모두 기록된 경기의 (총 Kill + 총 Assist) ÷ 총 Death이며, Death 합계가 0이면 Perfect로 표시합니다. 평균 K/D/A와 평균 CS는 각 항목이 수집된 경기만 계산하므로 수집 경기 수가 서로 다를 수 있습니다.</p><p>CS/min은 CS와 경기 시간이 모두 기록된 경기의 총 CS ÷ 총 경기 시간(분)입니다. 알 수 없는 값은 ‘—’로 표시합니다. 경기 기록을 수정하거나 삭제하면 다음 새로고침에 다시 집계됩니다.</p>${totals.seriesWins == null ? '' : `<p>현재 경기일 전체 기준 · 완료 시리즈 ${totals.seriesWins}승 ${totals.seriesLosses}패 · 시리즈 내 팀 이동 ${totals.mixedSeries}회. 팀을 옮긴 시리즈는 세트 승패만 집계합니다.</p>`}</details>`;
-    $('playerDetail').innerHTML = profileHead + summary + empty + renderExplorer(detail, panelAttribute, notes, animate);
+    const wall = R && totals.games ? R.renderAchievements(R.achievements(detail), { scope: selectedDate === 'all' ? '전체 경기일' : fullDate(selectedDate) }) : '';
+    $('playerDetail').innerHTML = profileHead + summary + wall + empty + renderExplorer(detail, panelAttribute, notes, animate);
     mountInsights();
     if (M && (animate || before)) M.play($('playerDetail'), animate ? null : before, { enabled: motionEnabled() });
+    // A live win streak of three or more gets a small celebration on arrival.
+    if (animate && M && detail.form?.streak?.won === true && detail.form.streak.count >= 3) setTimeout(() => M.burst($('playerDetail').querySelector?.('.ps-streak'), { enabled: motionEnabled(), count: 12 }), 900);
     if (focusSelector) focusControl($('playerDetail'), focusSelector);
   }
   const FLAME = '<svg class="ps-flame" viewBox="0 0 24 24" aria-hidden="true"><path class="ps-flame-outer" d="M12 1.5c.7 3.6 6.2 6.3 6.2 12A6.2 6.2 0 0 1 12 19.7a6.2 6.2 0 0 1-6.2-6.2c0-2.9 1.5-4.8 3-6.2.1 2.1 1 3.6 2.4 4.4-.4-4.3.1-7.6.8-10.2Z"/><path class="ps-flame-inner" d="M12 10.2c.4 2 3.1 3.4 3.1 6.2a3.1 3.1 0 0 1-6.2 0c0-1.4.7-2.4 1.4-3.2.1 1 .6 1.7 1.1 2-.1-1.9.2-3.5.6-5Z"/></svg>';
@@ -492,6 +498,62 @@
     return `<section class="pe-workspace" aria-labelledby="explorerHeading" data-ripple-scope><div class="pe-heading"><div><span class="eyebrow">PLAY EXPLORER</span><h3 id="explorerHeading" tabindex="-1">플레이 탐색</h3></div><p>라인과 챔피언을 고르고, 경기 흐름을 직접 움직여 보세요.</p></div><div class="pe-toolbar" role="group" aria-label="개인 성적 보기 방식">${[['explore', '탐색'], ['matches', '경기 목록'], ['details', '상세 통계']].map(([id, label]) => `<button type="button" data-explorer-view="${id}" aria-pressed="${explorerView === id}">${label}</button>`).join('')}</div><div class="pe-scope-line"><p aria-live="polite">${esc(scopeLabel)} · <b>${totals.games}경기</b></p>${chips}<button type="button" class="pe-reset" data-explorer-reset=""${selectedRole || selectedChampion ? '' : ' disabled'}>필터 초기화</button></div><div class="pe-layout">${filters}<div class="pe-content">${totalsMarkup}${empty}${exploration}${recent}${detailed}</div></div></section>`;
   }
 
+  // Season recap: user-opened story slides. Auto-advance only while motion is on
+  // and not paused; arrows, the side buttons and the keyboard always work.
+  function openRecap(trigger) {
+    const detail = selectedDetail();
+    const data = detail && R ? R.recap(detail, { teammates: !demoMode }) : null;
+    if (!data) return;
+    recapSlides = R.renderStory(data, { demo: demoMode });
+    recapReturn = trigger || null;
+    recapPaused = !motionEnabled();
+    recapDirection = 'next';
+    $('recapDialog').showModal();
+    showRecapSlide(0);
+    $('recapNext').focus();
+  }
+  function recapProgress() {
+    $('recapProgress').innerHTML = recapSlides.map((_, index) => `<i class="${index < recapIndex ? 'is-done' : index === recapIndex ? `is-active${recapPaused || !motionEnabled() ? ' is-paused' : ''}` : ''}"><b></b></i>`).join('');
+    $('recapProgress').style?.setProperty?.('--recap-ms', `${RECAP_MS}ms`);
+    $('recapPause').textContent = recapPaused ? '재생' : '일시정지';
+    $('recapPause').setAttribute('aria-pressed', String(recapPaused));
+    $('recapPause').hidden = !motionEnabled();
+    $('recapCount').textContent = `${recapIndex + 1} / ${recapSlides.length}`;
+    $('recapPrev').disabled = recapIndex === 0;
+    $('recapNext').disabled = recapIndex === recapSlides.length - 1;
+  }
+  function scheduleRecap() {
+    clearTimeout(recapTimer);
+    recapTimer = null;
+    if (!recapPaused && motionEnabled() && recapIndex < recapSlides.length - 1) recapTimer = setTimeout(() => showRecapSlide(recapIndex + 1), RECAP_MS);
+  }
+  function showRecapSlide(index) {
+    if (!recapSlides.length) return;
+    const next = Math.max(0, Math.min(recapSlides.length - 1, index));
+    recapDirection = next < recapIndex ? 'prev' : 'next';
+    recapIndex = next;
+    const stage = $('recapStage');
+    stage.innerHTML = recapSlides[recapIndex];
+    if (stage.dataset) stage.dataset.direction = recapDirection;
+    // Slides with their own buttons sit above the tap zones.
+    const interactive = recapSlides[recapIndex].includes('rc-actions');
+    stage.classList?.[interactive ? 'add' : 'remove']('is-interactive');
+    const frame = stage.parentElement || stage.parentNode;
+    if (frame?.dataset) frame.dataset.tone = recapSlides[recapIndex].includes('rc-light') ? 'light' : 'dark';
+    recapProgress();
+    if (interactive && document.activeElement === $('recapNext')) stage.querySelector?.('[data-recap-explore]')?.focus();
+    const motion = motionEnabled();
+    M?.play(stage, null, { enabled: motion });
+    const slide = stage.querySelector?.('.rc-slide');
+    if (slide?.hasAttribute?.('data-celebrate')) setTimeout(() => M?.burst(slide, { enabled: motionEnabled(), count: 18 }), 450);
+    scheduleRecap();
+  }
+  function closeRecap() {
+    clearTimeout(recapTimer);
+    recapTimer = null;
+    if ($('recapDialog').open) $('recapDialog').close();
+  }
+
   function selectedDetail() {
     return S.selectPlayer(state, selectedPlayer, selectedDate === 'all' ? {} : { date: selectedDate });
   }
@@ -514,6 +576,8 @@
   $('playerHistory').addEventListener('click', navigateClick);
   $('playerDetail').addEventListener('click', event => {
     if (event.target.closest('[data-insight-replay]')) { if (!stopReplay()) startReplay(); return; }
+    const recapButton = event.target.closest('[data-recap-open]');
+    if (recapButton) { stopReplay(); openRecap(recapButton); return; }
     stopReplay();
     const demoGame = event.target.closest('[data-demo-game]');
     if (demoGame && demoMode) { event.preventDefault(); openDemoGame(Number(demoGame.dataset.demoGame), demoGame); return; }
@@ -651,6 +715,25 @@
   $('demoGameClose').addEventListener('click', closeDemoGame);
   $('demoGameDialog').addEventListener('click', event => { if (event.target === $('demoGameDialog')) closeDemoGame(); });
   $('demoGameDialog').addEventListener('close', () => { if (demoMode) demoReturnFocus?.focus({ preventScroll: true }); demoReturnFocus = null; });
+  $('recapNext').addEventListener('click', () => showRecapSlide(recapIndex + 1));
+  $('recapPrev').addEventListener('click', () => showRecapSlide(recapIndex - 1));
+  $('recapClose').addEventListener('click', closeRecap);
+  $('recapPause').addEventListener('click', () => { recapPaused = !recapPaused; recapProgress(); scheduleRecap(); });
+  document.addEventListener('keydown', event => {
+    if (!$('recapDialog').open) return;
+    if (event.key === 'ArrowRight') { event.preventDefault(); showRecapSlide(recapIndex + 1); }
+    else if (event.key === 'ArrowLeft') { event.preventDefault(); showRecapSlide(recapIndex - 1); }
+  });
+  $('recapDialog').addEventListener('click', event => {
+    if (event.target.closest?.('[data-recap-again]')) { showRecapSlide(0); return; }
+    if (event.target.closest?.('[data-recap-explore]')) {
+      recapReturn = null;
+      closeRecap();
+      $('explorerHeading')?.focus({ preventScroll: true });
+      $('explorerHeading')?.scrollIntoView({ behavior: motionEnabled() ? 'smooth' : 'auto', block: 'start' });
+    }
+  });
+  $('recapDialog').addEventListener('close', () => { clearTimeout(recapTimer); recapTimer = null; recapReturn?.focus?.({ preventScroll: true }); recapReturn = null; });
   $('playersMotionToggle').addEventListener('click', () => {
     motionPreference = motionEnabled() ? 'off' : 'on';
     try { window.localStorage?.setItem('lol-player-motion', motionPreference); } catch (_) { /* Preferences are optional; statistics never write to the server. */ }
