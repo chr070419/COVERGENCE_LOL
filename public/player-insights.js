@@ -28,8 +28,8 @@
   const easeOut = t => 1 - Math.pow(1 - t, 3);
   const frame = callback => typeof root.requestAnimationFrame === 'function' ? root.requestAnimationFrame(callback) : null;
 
-  // A text-only champion mark. It is not an official icon: two letters and a
-  // stable colour family derived from the recorded name, so a missing or
+  // A text-only champion mark. It is not an official icon: two letters and one
+  // of six brand-palette fills derived from the recorded name, so a missing or
   // unmatched champion still reads as its name.
   function championInitials(name) {
     const parts = String(name || '').split(/[^\p{L}\p{N}]+/u).filter(Boolean);
@@ -41,7 +41,7 @@
   function championHue(name) {
     let hash = 0;
     for (const character of String(name || '').trim().toLocaleLowerCase('en-US')) hash = (hash * 31 + character.codePointAt(0)) >>> 0;
-    return hash % 8;
+    return hash % 6;
   }
   function championToken(name, className = '') {
     return name ? `<span class="pt-token pt-hue-${championHue(name)}${className ? ` ${className}` : ''}" aria-hidden="true"><b>${esc(championInitials(name))}</b></span>` : `<span class="pt-token pt-token-empty${className ? ` ${className}` : ''}" aria-hidden="true"><b>?</b></span>`;

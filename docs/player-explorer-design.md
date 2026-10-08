@@ -63,6 +63,22 @@ Final validation: 103 tests passed across the fixture, pure graph model/controll
 
 New files: `public/player-motion.js` (count-up, bar tween, tilt, burst, ripple — every helper is a no-op when motion is off or an API is missing, and always ends on the exact rendered text), `public/player-arena.css` (loaded last).
 
+## CHR_Web Harness r6 alignment (r2 of this revision)
+
+The first v13 pass was built without the harness package. After the full `CHR_Web_Harness_r6.zip` was provided, `HARNESS.md`, `docs/DESIGN.md`, `docs/QA.md`, `docs/DIAGRAMS.md`, `docs/DECISIONS.md`, `docs/INTAKE.md`, `docs/HANDOFF.md` and `runtime/design-tokens.json` were read and the play layer was restyled; interactions are unchanged.
+
+| Harness rule | First pass | Now |
+| --- | --- | --- |
+| Brand palette only (navy, blue, slate, auxiliary, inactive, tint/surface/content tint); no added themes | Gold accents, orange flame, eight multi-hue champion gradients, glow | Palette tokens only (plus white and the v12 loss colour); six champion fills from the palette; enforced by a test |
+| Angular faces and thin lines; no repeated decorative cards | 10–12px radii, pill buttons, gloss and drop shadows | 0–2px corners, flat fills, 1px borders; no glow/gloss |
+| No gradient/shadow behind headline text | Text glow on the player name, sweeping light band, radial hero gradient | Removed; v12 solid navy stage kept |
+| Readable sizes, no forced small text | 7–10px labels (LATEST tag, kickers) | All labels ≥ 11px (test); LATEST tag replaced by a white top rule |
+| Short feedback motion, no autoplay | Infinite flame flicker and lane flow | Finite iterations everywhere (test); text in the selected-game card no longer fades or moves |
+| Print and reduced-motion paths | Not covered by the new layer | Print disables animation and hides replay/watermarks; reduced motion and the toggle remove all motion |
+| QA at 1440/1024/390/320 and 200% zoom, recorded separately from device QA | 200% zoom not checked | Checked (see below) |
+
+Process note: the harness treats a broad redesign as a representative draft that needs explicit user approval before publishing. This revision is therefore a draft on the branch; nothing was published to the Site.
+
 ## Rules kept
 
 - Statistics still come only from match records through the existing selectors. Facts and badges are maxima/counts of recorded values; no score, MMR, MVP or ACE is shown or implied.
@@ -72,6 +88,6 @@ New files: `public/player-motion.js` (count-up, bar tween, tilt, burst, ripple �
 
 ## Verification (this revision)
 
-- `node --test tests/*.cjs tests/*.mjs`: 266 passed (254 existing, 1 existing assertion updated for count-up markup, 12 new: hero facts and jumps, out-of-scope recent card, replay, view marker, token, markers, badges, replay/morph no-op, motion module).
-- Real Chromium via Playwright against a local static server with a mock read-only `/api` (demo state): 1440 / 1024 / 390 / 320 px renders with no horizontal overflow and no console errors; scripted checks of entrance count-up (12.1% → 62.5%), fact → filter, map + champion intersection, reset, hover preview, plot click and drag, metric morph, replay 1 → 24, highlight burst + scroll, hero card selection, view switch, explicit motion off and emulated OS reduced motion.
-- Not verified: real phones/tablets, touch feel, Safari/WebKit, KakaoTalk webview, 200% zoom, screen readers, the real Sites runtime and D1 data, and whether the user now finds it fun.
+- `node --test tests/*.cjs tests/*.mjs`: 267 passed (254 existing, 1 existing assertion updated for count-up markup, 13 new: harness token guard, hero facts and jumps, out-of-scope recent card, replay, view marker, token, markers, badges, replay/morph no-op, motion module).
+- Real Chromium via Playwright against a local static server with a mock read-only `/api` (demo state): 1440 / 1024 / 430 / 390 / 375 / 320 px renders with no horizontal overflow and no console errors; 200% zoom emulated as 720×450 (desktop) and 195 CSS px (390 phone) at device scale 2 with no overflow or clipped labels; print media emulated (animations off, replay/watermarks hidden) and an A4 PDF produced; scripted checks of entrance count-up (12.1% → 62.5%), fact → filter, map + champion intersection, reset, hover preview, plot click and drag, metric morph, replay 1 → 24, highlight burst + scroll, hero card selection, view switch, explicit motion off and emulated OS reduced motion.
+- Not verified: real phones/tablets, touch feel, Safari/WebKit, KakaoTalk webview, real browser text-zoom settings (only emulated), screen readers, the printed PDF on paper, the real Sites runtime and D1 data, and whether the user now finds it fun.
